@@ -321,3 +321,86 @@ Base URL: `/api/v1`
 - Cache（可後加）: Redis
 
 如果團隊偏 Python，也可以用 FastAPI；重點是規則與資料模型設計，不是框架名稱。
+
+---
+
+## 9. 然後我如何使用？（從 0 到可操作）
+
+這一段是給「現在就要開始」的版本。
+
+### Step 0：先定一個最小商品模型（不要貪多）
+
+先只做 1 款娃娃，並限制：
+
+- 4 個選項群組（例如 HEAD / TORSO / JOINT / ACCESSORY）
+- 每群 3~5 個選項
+- 3 條 constraint rule + 1 條 price rule
+
+目標是先把「可配置 → 可驗證 → 可計價 → 可下單」跑通。
+
+### Step 1：建表
+
+1. 先在 PostgreSQL 執行本文件第 2 節 SQL。
+2. 確認資料表可查詢：`product_models`, `option_groups`, `options`, `constraint_rules`, `price_rules`, `configuration_drafts`, `orders`, `order_items`。
+
+### Step 2：灌入最小測試資料（seed）
+
+至少需要：
+
+- `product_models`: 1 筆（例如 `DOLL_SERIES_A`）
+- `option_groups`: 4 筆（HEAD / TORSO / JOINT / ACCESSORY）
+- `options`: 每組 3 筆以上
+- `constraint_rules`: 
+  - `requires`: JOINT_PRO requires TORSO_PRO
+  - `excludes`: HEAD_A excludes NECK_B
+- `price_rules`:
+  - `PRO_BUNDLE_DISCOUNT`: JOINT_PRO + TORSO_PRO 時折扣 300
+
+### Step 3：先做 3 支 API（就能開始前端串接）
+
+請先完成：
+
+1. `GET /product-models/:id/config-schema`
+2. `POST /configurations/validate`
+3. `POST /configurations/price`
+
+這 3 支完成後，前端就能做互動式配置器。
+
+### Step 4：前端使用順序（每次點選都一樣）
+
+1. 使用者選一個 option
+2. 呼叫 `/configurations/validate`
+3. 把回傳的 `disabledOptionCodes` 套到 UI
+4. 呼叫 `/configurations/price`
+5. 更新總價與明細
+
+> 關鍵：UI 必須顯示「不能選的原因」，不要只灰掉。
+
+### Step 5：完成可下單版本
+
+當使用者按下「加入購物車 / 送出訂單」：
+
+1. 伺服器端再做一次 validate + price（不可只信前端）
+2. 建立 `order_items`
+3. 寫入 `config_snapshot`
+
+這樣之後即使規則改版，舊訂單仍可追溯。
+
+### Step 6：驗收清單（你可以直接拿去對開發）
+
+- [ ] 衝突選項會被即時禁用
+- [ ] 相依選項缺失時會有可讀錯誤訊息
+- [ ] 價格會隨選項即時更新
+- [ ] 建單時一定寫入 snapshot
+- [ ] 後台可停用 option，不影響舊訂單內容
+
+---
+
+## 10. 第一個月建議里程碑
+
+- Week 1：資料模型 + seed + `/config-schema`
+- Week 2：`/validate` + `/price` + 前端基本配置器
+- Week 3：`/orders/from-draft/:draftId` + snapshot + 基本後台
+- Week 4：內容頁（諮詢分享 / 月刊 / 手冊區）串到同站
+
+如果你要下一步，我可以直接補「SQL seed 範本 + validate/price 的偽代碼流程」，讓工程師可以直接開始寫。
